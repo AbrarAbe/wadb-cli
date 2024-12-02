@@ -106,6 +106,69 @@ pair_device() {
     fi
 }
 
+connect_device() {
+    ip_address=$(get_ip_address)
+    echo "IP Address entered: $ip_address"
+    connect_port=$(get_connect_port)
+    echo "Port entered: $connect_port"
+    ip_address_connect="${ip_address}:$connect_port"
+    echo "Connecting to $ip_address_connect..."
+    sleep 2
+    connect_output=$(adb connect "$ip_address_connect" 2>&1)
+
+    if echo "$connect_output" | grep -iq "connected"; then
+        echo
+        echo "Connection successful!"
+        sleep 4
+        clear
+    else
+        echo "Connection failed!"
+        echo "Error: $connect_output"
+        sleep 4
+    fi
+}
+
+disconnect_device() {
+    connected_devices=$(adb devices -l | tail -n +2 | awk '{print $1" "$4" "$5}')
+    if [ $? -ne 0 ]; then
+        echo "Error getting connected devices."
+        return
+    fi
+
+    devices=()
+    while [[ "$connected_devices" =~ ([^\s]+) ]]; do
+        devices+=("${BASH_REMATCH[1]}")
+        connected_devices="${connected_devices#* }"
+    done
+
+    if [ ${#devices[@]} -eq 0 ]; then
+        echo "No connected devices found."
+        return
+    fi
+
+    echo "Connected devices:"
+    for i in "${!devices[@]}"; do
+        echo "$((i + 1)). ${devices[i]%%	*}" #Remove the tab character from device name
+    done
+
+    while true; do
+        read -p "Select a device to disconnect (enter number): " choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#devices[@]} )); then
+            selected_device="${devices[choice-1]%%	*}" #Remove the tab character from device name
+            adb disconnect "$selected_device"
+            if [ $? -eq 0 ]; then
+                echo "Disconnected from $selected_device..."
+                break
+            else
+                echo "Error disconnecting from $selected_device"
+            fi
+            break
+        else
+            echo "Invalid choice. Please enter a number from the list."
+        fi
+    done
+}
+
 disconnect_all_device() {
     echo "Processing..."
     sleep 3
@@ -124,25 +187,33 @@ while true; do
     adb devices -l | tail -n +2 | awk '{print $1" "$4" "$5}'
     echo "Choose an action:"
     echo "1. Pair a device"
-    echo "2. Disconnect all"
-    echo "3. Exit"
+    echo "2. Connect to device"
+    echo "3. Disconnect from device"
+    echo "4. Disconnect all"
+    echo "5. Exit"
     echo
     read -p "Enter your choice (1-3): " choice
     echo
 
-    case "$choice" in
-        1)
-            pair_device
-            ;;
-        2)
-            disconnect_all_device
-            ;;
-        3)
-            echo "Exited"
-            exit 0
-            ;;
-        *)
-            echo "Invalid choice. Please enter 1, 2, or 3."
-            ;;
-    esac
-done
+        case "$choice" in
+            1)
+                pair_device
+                ;;
+            2)
+                connect_device
+                ;;
+            3)
+                disconnect_device
+                ;;
+            4)
+                disconnect_all_device
+                ;;
+            5)
+                echo "Exited."
+                exit 0
+                ;;
+            *)
+                echo "Invalid choice. Please enter a number between 1 and 5."
+                ;;
+        esac
+    done
