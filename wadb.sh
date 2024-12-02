@@ -1,10 +1,16 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
+
+# Check if 'adb' command is available
+if ! command -v adb &>/dev/null; then
+    echo "Error: 'adb' command not found. Please install ADB and try again."
+    exit 1
+fi
 
 get_ip_address() {
     while true; do
-        read -p "Enter IP address (192.168.X.X, enter X for oktet): 192.168." ip_address
-        if [[ "$ip_address" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
-            echo "192.168.$ip_address"1
+        read -p "Enter IP Address (192.168.X.X, enter X for oktet): 192.168." ip_address
+        if [[ "$ip_address" =~ ^[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "192.168.$ip_address"
         else
             echo "Invalid IP address format. Please use the format X.X (0-255)"
         fi
@@ -14,9 +20,33 @@ get_ip_address() {
 
 get_pair_port() {
     while true; do
-        read -p "Enter port number (5 digits, e.g., 55555): " port_number
-        if [[ "$port_number" =~ ^[0-9]{5}$ ]]; then
-            echo "$port_number"
+        read -p "Enter pairing port number (5 digits, e.g., 55555): " pair_port_number
+        if [[ "$pair_port_number" =~ ^[0-9]{5}$ ]]; then
+            echo "$pair_port_number"
+        else
+            echo "Invalid port number. Please enter a 5-digit number"
+        fi
+        return
+    done
+}
+
+get_pairing_code() {
+    while true; do
+        read -p "Enter pairing code: " pairing_number
+        if [[ "$pairing_number" =~ ^[0-9]{6}$ ]]; then
+        echo "$pairing_number"
+        else
+            echo "Invalid pairing number. Please try again"
+        fi
+        return
+    done
+}
+
+get_connect_port() {
+    while true; do
+        read -p "Enter port number for connection (5 digits, e.g., 55555): " connect_port_number
+        if [[ "$connect_port_number" =~ ^[0-9]{5}$ ]]; then
+            echo "$connect_port_number"
         else
             echo "Invalid port number. Please enter a 5-digit number"
         fi
@@ -26,41 +56,64 @@ get_pair_port() {
 
 pair_device() {
     ip_address=$(get_ip_address)
-    pair_port_number=$(get_pair_port)
-    ip_address_port="$ip_address:$pair_port_number"
-    adb pair "$ip_address_port"
-    if [ $? -eq 0 ]; then
-        echo "Pairing successful."
-        read -p "Enter port number for connection (5 digits, e.g., 55555): " connect_port_number
+    echo "IP Address entered: $ip_address"
+    pair_port=$(get_pair_port)
+    echo "Pairing Port entered: $pair_port"
+    pairing_code=$(get_pairing_code)
+    echo "Pairing Code entered: $pairing_code"
+
+    adb_pair="$ip_address:$pair_port"
+    echo "Pairing with $adb_pair..."
+    sleep 1
+
+    # Execute adb pair and capture the output
+    pair_output=$(adb pair "$adb_pair" "$pairing_code" 2>&1)
+
+    # Check for errors using specific keywords
+    if echo "$pair_output" | grep -q -i "protocol fault\|error\|couldn't read"; then
+        echo "Pairing failed! Please check your pairing code."
+        echo "Error details: $pair_output"
+        sleep 4
+    elif echo "$pair_output" | grep -iq "success"; then
+        sleep 1
         echo
-        if [[ "$connect_port_number" =~ ^[0-9]{5}$ ]]; then
-            ip_address_connect="${ip_address}:$connect_port_number"
-            adb connect "$ip_address_connect"
+        echo "Pairing successful!"
+        sleep 1
+        echo
+
+        # Proceed to connect
+        connect_port=$(get_connect_port)
+        echo "Port entered: $connect_port"
+        ip_address_connect="${ip_address}:$connect_port"
+        echo "Connecting to $ip_address_connect..."
+        sleep 2
+        connect_output=$(adb connect "$ip_address_connect" 2>&1)
+
+        if echo "$connect_output" | grep -iq "connected"; then
             echo
-            if [ $? -eq 0 ]; then
-                sleep 5
-                break
-                clear
-            else
-                echo "Error connecting with $ip_address_connect"
-            fi
+            echo "Connection successful!"
+            sleep 4
             clear
         else
-            echo "Invalid port number. Please enter a 5-digit number"
+            echo "Connection failed!"
+            echo "Error: $connect_output"
+            sleep 4
         fi
     else
-        echo "Error pairing with $ip_address_port"
-        sleep 2
+        echo "Unexpected pairing response!"
+        echo "Output: $pair_output"
+        sleep 4
     fi
 }
 
 disconnect_all_device() {
-    adb disconnect
     echo "Processing..."
-    sleep 5
-    echo "Done."
     sleep 3
-    clear
+    adb disconnect
+    sleep 1
+    echo "Done."
+    echo "Exited."
+    exit 0
 }
 
 while true; do
