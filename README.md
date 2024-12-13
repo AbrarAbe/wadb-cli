@@ -2,6 +2,10 @@
 
 `wadb-cli` is a simple command-line interface (CLI) tool written in shell script to streamline the process of pairing and connecting to Android devices wirelessly using ADB.  It simplifies the common tasks of entering IP addresses and ports, providing a user-friendly experience.
 
+## Preview
+
+<div><img width="60%" src="source/assets/1.png"/><br></div>
+
 ## Features
 
 * **Simplified Pairing:** Guides the user through the pairing process, prompting for the device's IP address, pairing port, and pairing code.  It validates user inputs to prevent errors.
